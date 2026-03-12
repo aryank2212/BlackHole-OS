@@ -29,6 +29,7 @@ $BuildDir    = Join-Path $ProjectRoot "build"
 $DriverDir   = Join-Path $ProjectRoot "drivers"
 $ShellDir    = Join-Path $ProjectRoot "shell"
 $LibcDir     = Join-Path $ProjectRoot "libc"
+$FsDir       = Join-Path $ProjectRoot "fs"
 
 # --- Output files ---
 $BootBin      = Join-Path $BuildDir "boot.bin"
@@ -49,6 +50,7 @@ $TimerObj     = Join-Path $BuildDir "timer.o"
 $AtaObj       = Join-Path $BuildDir "ata.o"
 $MemoryObj    = Join-Path $BuildDir "memory.o"
 $ShellObj     = Join-Path $BuildDir "shell.o"
+$Fat16Obj     = Join-Path $BuildDir "fat16.o"
 $StringObj    = Join-Path $BuildDir "string.o"
 $StdioObj     = Join-Path $BuildDir "stdio.o"
 $KernelPe     = Join-Path $BuildDir "kernel.pe"
@@ -244,9 +246,16 @@ function Build-OS {
            -Wall -Wextra -c (Join-Path $LibcDir "stdio.c") -o $StdioObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: stdio compilation" -ForegroundColor Red; exit 1 }
 
+    # 7g. Compile FAT16 filesystem
+    Write-Host "[7g/16] Compiling FAT16 driver..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $FsDir "fat16.c") -o $Fat16Obj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: FAT16 compilation" -ForegroundColor Red; exit 1 }
+
     # 8. Link kernel as PE
     Write-Host "[8/15] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $TaskObj $IdtObj $GdtCObj $GdtFlushObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $UserModeObj $SwitchObj $ShellObj $StringObj $StdioObj 2> (Join-Path $BuildDir "ld_error.log")
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $TaskObj $IdtObj $GdtCObj $GdtFlushObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $UserModeObj $SwitchObj $Fat16Obj $ShellObj $StringObj $StdioObj 2> (Join-Path $BuildDir "ld_error.log")
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking (check ld_error.log)" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary
@@ -277,10 +286,59 @@ function Run-OS {
         exit 1
     }
 
-    Write-Host "Creating HDD Image if not exists..." -ForegroundColor Gray
+    Write-Host "Creating FAT16-formatted HDD Image..." -ForegroundColor Gray
     $hddImage = Join-Path $BuildDir "hdd.img"
     if (-not (Test-Path $hddImage)) {
-        & fsutil file createnew $hddImage 1048576 | Out-Null
+        # Create a 1 MB all-zero disk image
+        $imgSize = 1048576
+        $img = New-Object byte[] $imgSize
+
+        # --- Write FAT16 BPB into sector 0 ---
+        # Jump boot code: EB 3C 90
+        $img[0] = 0xEB; $img[1] = 0x3C; $img[2] = 0x90
+        # OEM Name: "BHOLE16 "
+        $oem = [System.Text.Encoding]::ASCII.GetBytes("BHOLE16 ")
+        [Array]::Copy($oem, 0, $img, 3, 8)
+        # Bytes per sector: 512 (0x0200)
+        $img[11] = 0x00; $img[12] = 0x02
+        # Sectors per cluster: 1
+        $img[13] = 0x01
+        # Reserved sectors: 1 (just the boot sector)
+        $img[14] = 0x01; $img[15] = 0x00
+        # Number of FATs: 2
+        $img[16] = 0x02
+        # Root entry count: 512 (0x0200) = 32 sectors of root dir
+        $img[17] = 0x00; $img[18] = 0x02
+        # Total sectors 16-bit: 2048 (1 MB / 512 = 2048 = 0x0800)
+        $img[19] = 0x00; $img[20] = 0x08
+        # Media type: 0xF8 (hard disk)
+        $img[21] = 0xF8
+        # FAT size in sectors: 8 (enough for 2048 cluster entries @ 2 bytes each = 4096 bytes = 8 sectors)
+        $img[22] = 0x08; $img[23] = 0x00
+        # Sectors per track: 32
+        $img[24] = 0x20; $img[25] = 0x00
+        # Number of heads: 2
+        $img[26] = 0x02; $img[27] = 0x00
+        # Hidden sectors: 0
+        $img[28] = 0x00; $img[29] = 0x00; $img[30] = 0x00; $img[31] = 0x00
+        # Total sectors 32-bit: 0
+        $img[32] = 0x00; $img[33] = 0x00; $img[34] = 0x00; $img[35] = 0x00
+        # Boot signature: 0x55AA
+        $img[510] = 0x55; $img[511] = 0xAA
+
+        # --- Initialize FAT1 and FAT2 ---
+        # FAT starts at sector 1 (byte offset 512)
+        # Entry 0: media descriptor 0xFFF8, Entry 1: end-of-chain 0xFFFF
+        $fat1Off = 512
+        $img[$fat1Off + 0] = 0xF8; $img[$fat1Off + 1] = 0xFF  # Cluster 0
+        $img[$fat1Off + 2] = 0xFF; $img[$fat1Off + 3] = 0xFF  # Cluster 1
+        # FAT2 starts at sector 9 (byte offset 512 * 9 = 4608)
+        $fat2Off = 4608
+        $img[$fat2Off + 0] = 0xF8; $img[$fat2Off + 1] = 0xFF
+        $img[$fat2Off + 2] = 0xFF; $img[$fat2Off + 3] = 0xFF
+
+        [System.IO.File]::WriteAllBytes($hddImage, $img)
+        Write-Host "> FAT16 disk image created (1 MB)." -ForegroundColor Green
     }
 
     Write-Host "Launching QEMU..." -ForegroundColor Cyan

@@ -3,6 +3,7 @@
 #include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
 #include "../drivers/ata.h"
+#include "../fs/fat16.h"
 #include "gdt.h"
 #include "idt.h"
 #include "paging.h"
@@ -40,6 +41,9 @@ void kernel_main(void) {
     keyboard_init();
     
     ata_init();
+
+    printf("Initializing FAT16 Filesystem...\n");
+    fat16_init();
 
     vga_set_color(VGA_WHITE, VGA_BLACK);
     printf("> IDT initialized.\n");

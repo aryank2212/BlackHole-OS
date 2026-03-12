@@ -1,7 +1,7 @@
 # BLACKHOLE OS PROJECT STATE
 
 **Project Name:** BlackHole  
-**Version:** 0.1.5  
+**Version:** 0.1.6  
 **Architecture:** x86 (initial version)
 
 **Goal:**  
@@ -13,7 +13,7 @@ loads a kernel, manages memory, and provides an interactive environment.
 ## SYSTEM ARCHITECTURE
 
 ```text
-Bootloader → Protected Mode Kernel → Scheduler (IRQ0 Multitasking) → User Space (Ring 3) → Syscalls (INT 0x80) → Subsystems (VGA, Keyboard, ATA HDD, Memory Allocator)
+Bootloader → Protected Mode Kernel → Scheduler (IRQ0 Multitasking) → FAT16 Filesystem → User Space (Ring 3) → Syscalls (INT 0x80) → Subsystems (VGA, Keyboard, ATA HDD, Memory Allocator)
 ```
 
 ---
@@ -88,3 +88,9 @@ Bootloader → Protected Mode Kernel → Scheduler (IRQ0 Multitasking) → User 
    - Wrote a pure NASM context switcher (`switch.S`) to dynamically push and pop CPU states safely across threads.
    - Tied `task_switch()` directly into the PIT IRQ0 driver, firing the scheduler automatically 100 times per second transparently.
    - Spawned an isolated `background_task` ticking a counter in parallel with `shell_loop()`.
+
+7. **FAT16 Filesystem**:
+   - Implemented a complete FAT16 driver parsing the BIOS Parameter Block (BPB) from disk sector 0.
+   - Supports file listing, reading (cluster-chain walking), writing (cluster allocation + FAT linking), and deletion.
+   - `build.ps1` now generates a properly FAT16-formatted 1 MB `hdd.img` with valid boot sector, dual FAT tables, and root directory.
+   - Shell commands: `ls`, `cat <file>`, `write <file> <text>`, `rm <file>`.

@@ -13,6 +13,7 @@
 #include "../kernel/memory.h"
 #include "../kernel/task.h"
 #include "../drivers/ata.h"
+#include "../fs/fat16.h"
 
 #define MAX_CMD_LEN 128
 
@@ -62,6 +63,12 @@ void shell_init(void) {
     printf("Type 'help' for a list of commands.\n\n");
 }
 
+/* Forward declarations for filesystem commands */
+static void cmd_ls(void);
+static void cmd_cat(const char *filename);
+static void cmd_write(const char *args);
+static void cmd_rm(const char *filename);
+
 /*
  * Parse and execute a command buffer.
  */
@@ -83,6 +90,10 @@ static void execute_command(char *cmd) {
         printf("  pagefault   - Trigger a deliberate Page Fault (Security Test)\n");
         printf("  diskread    - Read sector 10 from HDD\n");
         printf("  diskwrite   - Write 'Hello Disk!' to sector 10 of HDD\n");
+        printf("  ls          - List files in root directory\n");
+        printf("  cat <file>  - Read and display file contents\n");
+        printf("  write <f> <text> - Create/overwrite a file\n");
+        printf("  rm <file>   - Delete a file\n");
     } 
     else if (strcmp(cmd, "clear") == 0) {
         vga_clear();
@@ -136,9 +147,70 @@ static void execute_command(char *cmd) {
         ata_read_sector(10, buffer);
         printf("Data: %s\n", (char *)buffer);
     }
+    else if (strcmp(cmd, "ls") == 0) {
+        cmd_ls();
+    }
+    else if (strncmp(cmd, "cat ", 4) == 0) {
+        cmd_cat(cmd + 4);
+    }
+    else if (strncmp(cmd, "write ", 6) == 0) {
+        cmd_write(cmd + 6);
+    }
+    else if (strncmp(cmd, "rm ", 3) == 0) {
+        cmd_rm(cmd + 3);
+    }
     else {
         vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
         printf("Unknown command: %s\n", cmd);
+        vga_set_color(VGA_WHITE, VGA_BLACK);
+    }
+}
+
+/* ---- FAT16 shell command helpers ---- */
+static void cmd_ls(void) {
+    printf("Root directory:\n");
+    fat16_list_root();
+}
+
+static void cmd_cat(const char *filename) {
+    uint8_t buf[2048];
+    memset(buf, 0, sizeof(buf));
+    int bytes = fat16_read_file(filename, buf, sizeof(buf) - 1);
+    if (bytes < 0) {
+        vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
+        printf("File not found: %s\n", filename);
+        vga_set_color(VGA_WHITE, VGA_BLACK);
+    } else {
+        buf[bytes] = '\0';
+        printf("%s\n", (char *)buf);
+    }
+}
+
+static void cmd_write(const char *args) {
+    /* args = "filename text..." */
+    char filename[32];
+    int i = 0;
+    while (args[i] && args[i] != ' ' && i < 31) {
+        filename[i] = args[i];
+        i++;
+    }
+    filename[i] = '\0';
+    if (args[i] == ' ') i++;
+    const char *data = args + i;
+    uint32_t len = strlen(data);
+    if (fat16_write_file(filename, (const uint8_t *)data, len) == 0) {
+        vga_set_color(VGA_LIGHT_GREEN, VGA_BLACK);
+        printf("Wrote %u bytes to '%s'.\n", len, filename);
+        vga_set_color(VGA_WHITE, VGA_BLACK);
+    }
+}
+
+static void cmd_rm(const char *filename) {
+    if (fat16_delete_file(filename) == 0) {
+        printf("Deleted '%s'.\n", filename);
+    } else {
+        vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
+        printf("File not found: %s\n", filename);
         vga_set_color(VGA_WHITE, VGA_BLACK);
     }
 }
