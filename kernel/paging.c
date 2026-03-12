@@ -12,9 +12,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/* Page Directory and Page Table arrays must be 4KB aligned. */
-uint32_t page_directory[1024] __attribute__((aligned(4096)));
-uint32_t first_page_table[1024] __attribute__((aligned(4096)));
+/* Allocate enough raw memory to ensure we can find a 4KB aligned chunk */
+static uint8_t page_directory_raw[4096 * 2];
+static uint8_t first_page_table_raw[4096 * 2];
+
+static uint32_t *page_directory;
+static uint32_t *first_page_table;
 
 /*
  * Load the Page Directory base address into CR3
@@ -34,6 +37,10 @@ static void enable_paging(void) {
 }
 
 void paging_init(void) {
+    /* Manually align pointers to 4KB (4096 bytes) boundaries */
+    page_directory = (uint32_t *)((((uint32_t)page_directory_raw) + 4095) & ~4095);
+    first_page_table = (uint32_t *)((((uint32_t)first_page_table_raw) + 4095) & ~4095);
+
     /*
      * 1. Initialize all 1024 Page Directory Entries to:
      *    - Not present (bit 0 = 0)
