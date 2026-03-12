@@ -10,6 +10,7 @@
 #include "../include/stdio.h"
 #include "../shell/shell.h"
 #include "user_mode.h"
+#include "task.h"
 
 /*
  * Kernel entry point — called from kernel_entry.asm
@@ -57,6 +58,10 @@ void kernel_main(void) {
     } else {
         printf("> Memory allocation test FAILED.\n\n");
     }
+
+    printf("Initializing Multitasking Scheduler...\n");
+    tasking_init();
+    printf("> Task zero active.\n\n");
 
     printf("Dropping to User Mode (Ring 3)...\n");
     switch_to_user_mode();

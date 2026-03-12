@@ -8,6 +8,7 @@
 #include "timer.h"
 #include "../kernel/idt.h" /* For outb/inb */
 #include "../kernel/isr.h" /* To register handler if needed, though we hardcode in isr.c */
+#include "../kernel/task.h" /* Scheduler Context Switcher */
 
 static uint32_t tick = 0;
 static uint32_t current_freq = 100;
@@ -15,6 +16,8 @@ static uint32_t current_freq = 100;
 /* Called by the IRQ0 interrupt handler */
 void timer_callback(void) {
     tick++;
+    /* Trigger the Multitasking Scheduler at every 10ms tick! */
+    task_switch();
 }
 
 void timer_init(uint32_t frequency) {

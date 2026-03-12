@@ -11,6 +11,7 @@
 #include "../include/stdio.h"
 #include "../include/string.h"
 #include "../kernel/memory.h"
+#include "../kernel/task.h"
 #include "../drivers/ata.h"
 
 #define MAX_CMD_LEN 128
@@ -31,6 +32,25 @@ void user_main(void) {
 
     /* Spin infinitely in Ring 3 since we cannot 'return' to Ring 0 normally */
     while(1);
+}
+
+/* Background thread demonstrating preemptive multitasking parallel to the shell */
+void background_task(void) {
+    uint32_t count = 0;
+    while(1) {
+        /* Hacky way to print to the top right corner directly using VGA memory exclusively for the background task */
+        uint16_t *vga = (uint16_t *)0xB8000;
+        char buffer[16];
+        uitoa(count++, buffer, 10);
+        
+        int offset = 70; /* Towards top right limit */
+        for(int i = 0; buffer[i] != '\0'; i++) {
+            vga[offset + i] = (vga[offset + i] & 0xFF00) | buffer[i];
+        }
+        
+        /* Yield heavily to let the primary shell execute fluidly */
+        sleep(1000); 
+    }
 }
 
 void shell_init(void) {
@@ -137,4 +157,13 @@ void shell_loop(void) {
         /* Execute it */
         execute_command(cmd_buffer);
     }
+}
+
+void shell_start_multitasking_demo(void) {
+    shell_init();
+    
+    /* Spawn our background task which will write autonomously via IRQ0 context switching */
+    create_kernel_thread(background_task);
+
+    shell_loop();
 }

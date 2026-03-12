@@ -1,7 +1,7 @@
 # BLACKHOLE OS PROJECT STATE
 
 **Project Name:** BlackHole  
-**Version:** 0.1.4  
+**Version:** 0.1.5  
 **Architecture:** x86 (initial version)
 
 **Goal:**  
@@ -13,7 +13,7 @@ loads a kernel, manages memory, and provides an interactive environment.
 ## SYSTEM ARCHITECTURE
 
 ```text
-Bootloader → Protected Mode Kernel → User Space (Ring 3) → Syscalls (INT 0x80) → Subsystems (VGA, Keyboard, ATA HDD, Memory Allocator)
+Bootloader → Protected Mode Kernel → Scheduler (IRQ0 Multitasking) → User Space (Ring 3) → Syscalls (INT 0x80) → Subsystems (VGA, Keyboard, ATA HDD, Memory Allocator)
 ```
 
 ---
@@ -82,3 +82,9 @@ Bootloader → Protected Mode Kernel → User Space (Ring 3) → Syscalls (INT 0
    - Connected a Task State Segment (TSS) caching the Ring 0 execution `ESP` registers preventing system stack destruction during Ring 3 interrupts.
    - Setup a `switch_to_user_mode` generic assembly router firing an `iret` payload to strip System Level permissions dynamically.
    - Intercepted Syscall Software Interrupt `0x80` allowing Ring 3 software to communicate with the Ring 0 backend (e.g. `printf`).
+
+6. **Preemptive Multitasking & Scheduler**:
+   - Programmed a `task.c` Linked List queue tracking active process control blocks (`task_t`).
+   - Wrote a pure NASM context switcher (`switch.S`) to dynamically push and pop CPU states safely across threads.
+   - Tied `task_switch()` directly into the PIT IRQ0 driver, firing the scheduler automatically 100 times per second transparently.
+   - Spawned an isolated `background_task` ticking a counter in parallel with `shell_loop()`.

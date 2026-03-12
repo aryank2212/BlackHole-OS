@@ -36,7 +36,9 @@ $KEntryObj    = Join-Path $BuildDir "kernel_entry.o"
 $IsrObj       = Join-Path $BuildDir "isr.o"
 $GdtFlushObj  = Join-Path $BuildDir "gdt_flush.o"
 $UserModeObj  = Join-Path $BuildDir "user_mode.o"
+$SwitchObj    = Join-Path $BuildDir "switch.o"
 $KernelObj    = Join-Path $BuildDir "kernel.o"
+$TaskObj      = Join-Path $BuildDir "task.o"
 $IdtObj       = Join-Path $BuildDir "idt.o"
 $IsrCObj      = Join-Path $BuildDir "isr_c.o"
 $GdtCObj      = Join-Path $BuildDir "gdt.o"
@@ -143,6 +145,9 @@ function Build-OS {
     & $nasm -f win32 (Join-Path $KernelDir "user_mode.S") -o $UserModeObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: user mode assembly" -ForegroundColor Red; exit 1 }
 
+    & $nasm -f win32 (Join-Path $KernelDir "switch.S") -o $SwitchObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: switch assembly" -ForegroundColor Red; exit 1 }
+
     # 4. Compile kernel C code
     Write-Host "[4/9] Compiling kernel..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
@@ -176,6 +181,13 @@ function Build-OS {
            -fno-stack-protector -nostartfiles -nodefaultlibs `
            -Wall -Wextra -c (Join-Path $KernelDir "paging.c") -o $PagingObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: Paging compilation" -ForegroundColor Red; exit 1 }
+
+    # 6c. Compile Scheduler module
+    Write-Host "[6c/10] Compiling scheduler module..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "task.c") -o $TaskObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: Scheduler compilation" -ForegroundColor Red; exit 1 }
 
     # 7. Compile VGA driver
     Write-Host "[7/9] Compiling VGA driver..." -ForegroundColor Gray
@@ -234,7 +246,7 @@ function Build-OS {
 
     # 8. Link kernel as PE
     Write-Host "[8/15] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $GdtCObj $GdtFlushObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $UserModeObj $ShellObj $StringObj $StdioObj 2> (Join-Path $BuildDir "ld_error.log")
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $TaskObj $IdtObj $GdtCObj $GdtFlushObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $UserModeObj $SwitchObj $ShellObj $StringObj $StdioObj 2> (Join-Path $BuildDir "ld_error.log")
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking (check ld_error.log)" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary
