@@ -41,6 +41,7 @@ $PagingObj    = Join-Path $BuildDir "paging.o"
 $VgaObj       = Join-Path $BuildDir "vga.o"
 $KeyboardObj  = Join-Path $BuildDir "keyboard.o"
 $TimerObj     = Join-Path $BuildDir "timer.o"
+$AtaObj       = Join-Path $BuildDir "ata.o"
 $MemoryObj    = Join-Path $BuildDir "memory.o"
 $ShellObj     = Join-Path $BuildDir "shell.o"
 $StringObj    = Join-Path $BuildDir "string.o"
@@ -103,7 +104,7 @@ function Install-Deps {
 
 function Clean-Build {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
-    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $PagingObj, $VgaObj, $KeyboardObj, $TimerObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
+    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $PagingObj, $VgaObj, $KeyboardObj, $TimerObj, $AtaObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
     foreach ($f in $artifacts) {
         if (Test-Path $f) { Remove-Item $f -Force }
     }
@@ -182,7 +183,14 @@ function Build-OS {
            -Wall -Wextra -c (Join-Path $DriverDir "timer.c") -o $TimerObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: timer driver compilation" -ForegroundColor Red; exit 1 }
 
-    # 7d. Compile Memory Allocator
+    # 7d. Compile ATA driver
+    Write-Host "[7d/15] Compiling ATA driver..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $DriverDir "ata.c") -o $AtaObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: ATA driver compilation" -ForegroundColor Red; exit 1 }
+
+    # 7e. Compile Memory Allocator
     Write-Host "[7d/14] Compiling memory allocator..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
            -fno-stack-protector -nostartfiles -nodefaultlibs `
@@ -211,7 +219,7 @@ function Build-OS {
 
     # 8. Link kernel as PE
     Write-Host "[8/15] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $MemoryObj $ShellObj $StringObj $StdioObj
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $ShellObj $StringObj $StdioObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary
@@ -242,8 +250,14 @@ function Run-OS {
         exit 1
     }
 
+    Write-Host "Creating HDD Image if not exists..." -ForegroundColor Gray
+    $hddImage = Join-Path $BuildDir "hdd.img"
+    if (-not (Test-Path $hddImage)) {
+        & fsutil file createnew $hddImage 1048576 | Out-Null
+    }
+
     Write-Host "Launching QEMU..." -ForegroundColor Cyan
-    & $qemu -fda $OsImage
+    & $qemu -fda $OsImage -hda $hddImage
 }
 
 # ============================================================================

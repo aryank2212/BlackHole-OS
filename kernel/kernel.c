@@ -1,6 +1,8 @@
 #include "../drivers/vga.h"
 #include "../drivers/keyboard.h"
+#include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
+#include "../drivers/ata.h"
 #include "idt.h"
 #include "paging.h"
 #include "memory.h"
@@ -30,6 +32,8 @@ void kernel_main(void) {
     timer_init(100); /* 100 Hz = 10ms per tick */
     
     keyboard_init();
+    
+    ata_init();
 
     vga_set_color(VGA_WHITE, VGA_BLACK);
     printf("> IDT initialized.\n");

@@ -11,6 +11,7 @@
 #include "../include/stdio.h"
 #include "../include/string.h"
 #include "../kernel/memory.h"
+#include "../drivers/ata.h"
 
 #define MAX_CMD_LEN 128
 
@@ -42,6 +43,8 @@ static void execute_command(char *cmd) {
         printf("  uptime      - Show system uptime in centiseconds\n");
         printf("  sleep       - Sleep for 1 second\n");
         printf("  pagefault   - Trigger a deliberate Page Fault (Security Test)\n");
+        printf("  diskread    - Read sector 10 from HDD\n");
+        printf("  diskwrite   - Write 'Hello Disk!' to sector 10 of HDD\n");
     } 
     else if (strcmp(cmd, "clear") == 0) {
         vga_clear();
@@ -79,6 +82,21 @@ static void execute_command(char *cmd) {
         printf("Triggering Page Fault at 0xFFFFF000...\n");
         uint32_t *bad_ptr = (uint32_t *)0xFFFFF000;
         *bad_ptr = 0xDEADBEEF; /* This should crash the OS safely into our handler */
+    }
+    else if (strcmp(cmd, "diskwrite") == 0) {
+        uint8_t buffer[512];
+        memset(buffer, 0, 512);
+        strcpy((char *)buffer, "Hello Disk! BlackHole OS was here.");
+        printf("Writing to LBA 10...\n");
+        ata_write_sector(10, buffer);
+        printf("Write complete.\n");
+    }
+    else if (strcmp(cmd, "diskread") == 0) {
+        uint8_t buffer[512];
+        memset(buffer, 0, 512);
+        printf("Reading from LBA 10...\n");
+        ata_read_sector(10, buffer);
+        printf("Data: %s\n", (char *)buffer);
     }
     else {
         vga_set_color(VGA_LIGHT_RED, VGA_BLACK);

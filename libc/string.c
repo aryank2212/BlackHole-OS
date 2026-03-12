@@ -113,3 +113,14 @@ char *uitoa(uint32_t value, char *str, int base) {
 
     return str;
 }
+
+char *strcpy(char *dest, const char *src) {
+    char *orig_dest = dest;
+    while (*src != '\0') {
+        *dest = *src;
+        dest++;
+        src++;
+    }
+    *dest = '\0';
+    return orig_dest;
+}

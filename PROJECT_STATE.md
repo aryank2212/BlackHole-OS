@@ -1,7 +1,7 @@
 # BLACKHOLE OS PROJECT STATE
 
 **Project Name:** BlackHole  
-**Version:** 0.1.2  
+**Version:** 0.1.3  
 **Architecture:** x86 (initial version)
 
 **Goal:**  
@@ -13,7 +13,7 @@ loads a kernel, manages memory, and provides an interactive environment.
 ## SYSTEM ARCHITECTURE
 
 ```text
-Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT) → Virtual Memory (Paging) → Standard Library (libc) → Memory Allocator → Interactive Shell
+Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT, ATA HDD) → Virtual Memory (Paging) → Standard Library (libc) → Memory Allocator → Interactive Shell
 ```
 
 ---
@@ -71,3 +71,8 @@ Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT) → Virtua
    - Configured Hardware Memory Management Translation across the `CR3` and `CR0` core hardware registers.
    - Identity mapped the lower 4 Megabytes of system memory natively.
    - Registered deep diagnostic logging over Hardware Exception 14 handling safe `kernel_panic` states instead of emulator reboots via fetching data directly from memory state pipeline over `CR2`.
+
+4. **Primary Storage (ATA PIO)**:
+   - Added `outw` and `inw` hardware inline assembly definitions.
+   - Wrote a full 512-byte blocking sequence disk driver for the Primary IDE master controller via 28-bit LBA (Ports `0x1F0` - `0x1F7`).
+   - Integrated a 1MB dynamic raw filesystem image attachment into QEMU via PowerShell utilizing `fsutil`.
