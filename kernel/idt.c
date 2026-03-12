@@ -64,6 +64,10 @@ void idt_init(void) {
     /* isr_irq1 is defined in isr.asm */
     idt_set_gate(33, (unsigned int)isr_irq1, 0x08, 0x8E);
 
+    /* Install Syscall handler - IDT entry 128 (0x80) */
+    /* DPL is set to 3 (0xEE) so User Mode can access it */
+    idt_set_gate(128, (unsigned int)isr_128, 0x08, 0xEE);
+
     /* Load IDT */
     __asm__ __volatile__("lidt (%0)" : : "r"(&idtp));
 

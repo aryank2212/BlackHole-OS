@@ -1,7 +1,7 @@
 # BLACKHOLE OS PROJECT STATE
 
 **Project Name:** BlackHole  
-**Version:** 0.1.3  
+**Version:** 0.1.4  
 **Architecture:** x86 (initial version)
 
 **Goal:**  
@@ -13,7 +13,7 @@ loads a kernel, manages memory, and provides an interactive environment.
 ## SYSTEM ARCHITECTURE
 
 ```text
-Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT, ATA HDD) → Virtual Memory (Paging) → Standard Library (libc) → Memory Allocator → Interactive Shell
+Bootloader → Protected Mode Kernel → User Space (Ring 3) → Syscalls (INT 0x80) → Subsystems (VGA, Keyboard, ATA HDD, Memory Allocator)
 ```
 
 ---
@@ -76,3 +76,9 @@ Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT, ATA HDD) �
    - Added `outw` and `inw` hardware inline assembly definitions.
    - Wrote a full 512-byte blocking sequence disk driver for the Primary IDE master controller via 28-bit LBA (Ports `0x1F0` - `0x1F7`).
    - Integrated a 1MB dynamic raw filesystem image attachment into QEMU via PowerShell utilizing `fsutil`.
+
+5. **User Mode (Ring 3) & Multitasking Prep**:
+   - Replaced the bootloader GDT with a fully-featured C Kernel GDT assigning Descriptor Privilege Level 3 to User Application Segments.
+   - Connected a Task State Segment (TSS) caching the Ring 0 execution `ESP` registers preventing system stack destruction during Ring 3 interrupts.
+   - Setup a `switch_to_user_mode` generic assembly router firing an `iret` payload to strip System Level permissions dynamically.
+   - Intercepted Syscall Software Interrupt `0x80` allowing Ring 3 software to communicate with the Ring 0 backend (e.g. `printf`).

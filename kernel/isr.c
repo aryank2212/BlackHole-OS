@@ -47,3 +47,13 @@ void irq1_handler(void) {
     /* Send End-Of-Interrupt to master PIC */
     outb(0x20, 0x20);
 }
+
+void isr128_handler(uint32_t syscall_num, uint32_t arg1, uint32_t arg2) {
+    /* Syscall router */
+    if (syscall_num == 1) {
+        /* Syscall 1: Print String */
+        printf("[Syscall] Ring 3 says: %s\n", (char *)arg1);
+    } else {
+        printf("[Syscall] Unknown syscall requested from User Space: %d\n", syscall_num);
+    }
+}

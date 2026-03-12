@@ -1,0 +1,5 @@
+ld: warning: cannot find entry symbol _start; defaulting to 00001000
+ld: kernel.o:kernel.c:(.text+0x13a): undefined reference to `switch_to_user_mode'
+ld: gdt.o:gdt.c:(.text+0x11a): undefined reference to `gdt_flush'
+ld: gdt.o:gdt.c:(.text+0x11f): undefined reference to `tss_flush'
+ld: user_mode.o:D:\Github\Private\:(.text+0x25): undefined reference to `user_main'

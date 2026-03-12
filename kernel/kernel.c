@@ -3,11 +3,13 @@
 #include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
 #include "../drivers/ata.h"
+#include "gdt.h"
 #include "idt.h"
 #include "paging.h"
 #include "memory.h"
 #include "../include/stdio.h"
 #include "../shell/shell.h"
+#include "user_mode.h"
 
 /*
  * Kernel entry point — called from kernel_entry.asm
@@ -21,6 +23,9 @@ void kernel_main(void) {
 
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     printf("Kernel loaded successfully.\n");
+
+    printf("Initializing Global Descriptor Table (GDT)...\n");
+    gdt_init();
 
     printf("Initializing Virtual Memory (Paging)...\n");
     paging_init();
@@ -53,6 +58,10 @@ void kernel_main(void) {
         printf("> Memory allocation test FAILED.\n\n");
     }
 
+    printf("Dropping to User Mode (Ring 3)...\n");
+    switch_to_user_mode();
+    
+    /* We should never reach here because user_main() takes over */
     /* Start the shell */
     shell_init();
     shell_loop();

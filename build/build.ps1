@@ -34,9 +34,12 @@ $LibcDir     = Join-Path $ProjectRoot "libc"
 $BootBin      = Join-Path $BuildDir "boot.bin"
 $KEntryObj    = Join-Path $BuildDir "kernel_entry.o"
 $IsrObj       = Join-Path $BuildDir "isr.o"
+$GdtFlushObj  = Join-Path $BuildDir "gdt_flush.o"
+$UserModeObj  = Join-Path $BuildDir "user_mode.o"
 $KernelObj    = Join-Path $BuildDir "kernel.o"
 $IdtObj       = Join-Path $BuildDir "idt.o"
 $IsrCObj      = Join-Path $BuildDir "isr_c.o"
+$GdtCObj      = Join-Path $BuildDir "gdt.o"
 $PagingObj    = Join-Path $BuildDir "paging.o"
 $VgaObj       = Join-Path $BuildDir "vga.o"
 $KeyboardObj  = Join-Path $BuildDir "keyboard.o"
@@ -104,7 +107,7 @@ function Install-Deps {
 
 function Clean-Build {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
-    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $PagingObj, $VgaObj, $KeyboardObj, $TimerObj, $AtaObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
+    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $GdtFlushObj, $UserModeObj, $KernelObj, $IdtObj, $GdtCObj, $IsrCObj, $PagingObj, $VgaObj, $KeyboardObj, $TimerObj, $AtaObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
     foreach ($f in $artifacts) {
         if (Test-Path $f) { Remove-Item $f -Force }
     }
@@ -130,9 +133,15 @@ function Build-OS {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel entry assembly" -ForegroundColor Red; exit 1 }
 
     # 3. Assemble ISR stubs (using GCC/GAS for consistent symbol mangling)
-    Write-Host "[3/9] Assembling ISR stubs..." -ForegroundColor Gray
+    Write-Host "[3/15] Assembling ISR stubs..." -ForegroundColor Gray
     & $gcc -m32 -c (Join-Path $KernelDir "isr_stub.S") -o $IsrObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: ISR assembly" -ForegroundColor Red; exit 1 }
+
+    & $nasm -f win32 (Join-Path $KernelDir "gdt_flush.S") -o $GdtFlushObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: gdt flush assembly" -ForegroundColor Red; exit 1 }
+
+    & $nasm -f win32 (Join-Path $KernelDir "user_mode.S") -o $UserModeObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: user mode assembly" -ForegroundColor Red; exit 1 }
 
     # 4. Compile kernel C code
     Write-Host "[4/9] Compiling kernel..." -ForegroundColor Gray
@@ -142,11 +151,17 @@ function Build-OS {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel compilation" -ForegroundColor Red; exit 1 }
 
     # 5. Compile IDT
-    Write-Host "[5/9] Compiling IDT..." -ForegroundColor Gray
+    Write-Host "[5/15] Compiling IDT..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
            -fno-stack-protector -nostartfiles -nodefaultlibs `
            -Wall -Wextra -c (Join-Path $KernelDir "idt.c") -o $IdtObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: IDT compilation" -ForegroundColor Red; exit 1 }
+
+    Write-Host "[5b/15] Compiling GDT..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "gdt.c") -o $GdtCObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: GDT compilation" -ForegroundColor Red; exit 1 }
 
     # 6. Compile ISR C handler
     Write-Host "[6/10] Compiling ISR handler..." -ForegroundColor Gray
@@ -219,8 +234,8 @@ function Build-OS {
 
     # 8. Link kernel as PE
     Write-Host "[8/15] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $ShellObj $StringObj $StdioObj
-    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking" -ForegroundColor Red; exit 1 }
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $GdtCObj $GdtFlushObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $AtaObj $MemoryObj $UserModeObj $ShellObj $StringObj $StdioObj 2> (Join-Path $BuildDir "ld_error.log")
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking (check ld_error.log)" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary
     Write-Host "[9/9] Converting to flat binary..." -ForegroundColor Gray

@@ -1,0 +1,5 @@
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: warning: cannot find entry symbol _start; defaulting to 00001000
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: D:\Github\Private\BlackHole_OS\build\kernel.pe:.text: section below image base
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: D:\Github\Private\BlackHole_OS\build\kernel.pe:.rdata: section below image base
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: D:\Github\Private\BlackHole_OS\build\kernel.pe:.data: section below image base
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: D:\Github\Private\BlackHole_OS\build\kernel.pe:.bss: section below image base

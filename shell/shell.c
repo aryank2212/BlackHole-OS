@@ -15,6 +15,24 @@
 
 #define MAX_CMD_LEN 128
 
+/* Function executed in Ring 3 User Space */
+void user_main(void) {
+    const char *msg = "Hello from Ring 3 (User Space)!";
+    
+    /* Trigger Syscall 1 (Print String) via Software Interrupt 0x80 */
+    __asm__ __volatile__(
+        "mov $1, %%eax\n"
+        "mov %0, %%ebx\n"
+        "int $0x80"
+        : 
+        : "r" (msg)
+        : "eax", "ebx"
+    );
+
+    /* Spin infinitely in Ring 3 since we cannot 'return' to Ring 0 normally */
+    while(1);
+}
+
 void shell_init(void) {
     vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
     printf("\n========================================\n");
