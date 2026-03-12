@@ -7,8 +7,17 @@
 
 .code32
 
+.extern _irq0_handler
 .extern _irq1_handler
+
+.global _isr_irq0
 .global _isr_irq1
+
+_isr_irq0:
+    pusha
+    call _irq0_handler
+    popa
+    iret
 
 _isr_irq1:
     pusha

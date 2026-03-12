@@ -5,6 +5,16 @@
 #include "isr.h"
 #include "idt.h"
 #include "../drivers/keyboard.h"
+#include "../drivers/timer.h"
+
+/*
+ * IRQ0 handler — called from isr.asm
+ * Informs the timer driver and sends EOI.
+ */
+void irq0_handler(void) {
+    timer_callback();
+    outb(0x20, 0x20); /* EOI */
+}
 
 /*
  * IRQ1 handler — called from isr.asm after saving registers.

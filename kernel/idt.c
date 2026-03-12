@@ -38,8 +38,8 @@ static void pic_remap(void) {
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
 
-    /* Mask all IRQs except IRQ1 (keyboard) */
-    outb(0x21, 0xFD);   /* Master: 1111 1101 — only IRQ1 unmasked */
+    /* Mask all IRQs except IRQ0 (timer) and IRQ1 (keyboard) */
+    outb(0x21, 0xFC);   /* Master: 1111 1100 — IRQ0, IRQ1 unmasked */
     outb(0xA1, 0xFF);   /* Slave:  all masked */
 }
 
@@ -54,6 +54,9 @@ void idt_init(void) {
 
     /* Remap PIC */
     pic_remap();
+
+    /* Install IRQ0 (timer) handler — IDT entry 32 */
+    idt_set_gate(32, (unsigned int)isr_irq0, 0x08, 0x8E);
 
     /* Install IRQ1 (keyboard) handler — IDT entry 33 */
     /* isr_irq1 is defined in isr.asm */

@@ -28,6 +28,7 @@ $BuildDir    = Join-Path $ProjectRoot "build"
 # --- Directories ---
 $DriverDir   = Join-Path $ProjectRoot "drivers"
 $ShellDir    = Join-Path $ProjectRoot "shell"
+$LibcDir     = Join-Path $ProjectRoot "libc"
 
 # --- Output files ---
 $BootBin      = Join-Path $BuildDir "boot.bin"
@@ -38,8 +39,11 @@ $IdtObj       = Join-Path $BuildDir "idt.o"
 $IsrCObj      = Join-Path $BuildDir "isr_c.o"
 $VgaObj       = Join-Path $BuildDir "vga.o"
 $KeyboardObj  = Join-Path $BuildDir "keyboard.o"
+$TimerObj     = Join-Path $BuildDir "timer.o"
 $MemoryObj    = Join-Path $BuildDir "memory.o"
 $ShellObj     = Join-Path $BuildDir "shell.o"
+$StringObj    = Join-Path $BuildDir "string.o"
+$StdioObj     = Join-Path $BuildDir "stdio.o"
 $KernelPe     = Join-Path $BuildDir "kernel.pe"
 $KernelBin    = Join-Path $BuildDir "kernel.bin"
 $OsImage      = Join-Path $BuildDir "os-image.bin"
@@ -98,7 +102,7 @@ function Install-Deps {
 
 function Clean-Build {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
-    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $VgaObj, $KeyboardObj, $MemoryObj, $ShellObj, $KernelPe, $KernelBin, $OsImage)
+    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $VgaObj, $KeyboardObj, $TimerObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
     foreach ($f in $artifacts) {
         if (Test-Path $f) { Remove-Item $f -Force }
     }
@@ -157,14 +161,21 @@ function Build-OS {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: VGA driver compilation" -ForegroundColor Red; exit 1 }
 
     # 7b. Compile Keyboard driver
-    Write-Host "[7b/9] Compiling keyboard driver..." -ForegroundColor Gray
+    Write-Host "[7b/14] Compiling keyboard driver..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
            -fno-stack-protector -nostartfiles -nodefaultlibs `
            -Wall -Wextra -c (Join-Path $DriverDir "keyboard.c") -o $KeyboardObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: keyboard driver compilation" -ForegroundColor Red; exit 1 }
 
-    # 7c. Compile Memory Allocator
-    Write-Host "[7c/10] Compiling memory allocator..." -ForegroundColor Gray
+    # 7c. Compile Timer driver
+    Write-Host "[7c/14] Compiling timer driver..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $DriverDir "timer.c") -o $TimerObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: timer driver compilation" -ForegroundColor Red; exit 1 }
+
+    # 7d. Compile Memory Allocator
+    Write-Host "[7d/14] Compiling memory allocator..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
            -fno-stack-protector -nostartfiles -nodefaultlibs `
            -Wall -Wextra -c (Join-Path $KernelDir "memory.c") -o $MemoryObj
@@ -177,9 +188,22 @@ function Build-OS {
            -Wall -Wextra -c (Join-Path $ShellDir "shell.c") -o $ShellObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: shell compilation" -ForegroundColor Red; exit 1 }
 
+    # 7e. Compile libc (string, stdio)
+    Write-Host "[7e/13] Compiling libc string..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $LibcDir "string.c") -o $StringObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: string compilation" -ForegroundColor Red; exit 1 }
+
+    Write-Host "[7f/13] Compiling libc stdio..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $LibcDir "stdio.c") -o $StdioObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: stdio compilation" -ForegroundColor Red; exit 1 }
+
     # 8. Link kernel as PE
-    Write-Host "[8/11] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $VgaObj $KeyboardObj $MemoryObj $ShellObj
+    Write-Host "[8/14] Linking kernel..." -ForegroundColor Gray
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $VgaObj $KeyboardObj $TimerObj $MemoryObj $ShellObj $StringObj $StdioObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary

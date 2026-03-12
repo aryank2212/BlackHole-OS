@@ -1,0 +1,35 @@
+In file included from ..\shell\shell.c:12:
+..\shell\../include/string.h:6:32: error: unknown type name 'size_t'
+    6 | void *memset(void *dst, int c, size_t n);
+      |                                ^~~~~~
+..\shell\../include/string.h:5:1: note: 'size_t' is defined in header '<stddef.h>'; this is probably fixable by adding '#include <stddef.h>'
+    4 | #include <stdint.h>
+  +++ |+#include <stddef.h>
+    5 | 
+..\shell\../include/string.h:7:42: error: unknown type name 'size_t'
+    7 | void *memcpy(void *dst, const void *src, size_t n);
+      |                                          ^~~~~~
+..\shell\../include/string.h:7:42: note: 'size_t' is defined in header '<stddef.h>'; this is probably fixable by adding '#include <stddef.h>'
+..\shell\../include/string.h:9:1: error: unknown type name 'size_t'
+    9 | size_t strlen(const char *str);
+      | ^~~~~~
+..\shell\../include/string.h:9:1: note: 'size_t' is defined in header '<stddef.h>'; this is probably fixable by adding '#include <stddef.h>'
+..\shell\../include/string.h:11:45: error: unknown type name 'size_t'
+   11 | int strncmp(const char *s1, const char *s2, size_t n);
+      |                                             ^~~~~~
+..\shell\../include/string.h:11:45: note: 'size_t' is defined in header '<stddef.h>'; this is probably fixable by adding '#include <stddef.h>'
+..\shell\shell.c: In function 'execute_command':
+..\shell\shell.c:45:14: error: implicit declaration of function 'strncmp' [-Wimplicit-function-declaration]
+   45 |     else if (strncmp(cmd, "echo ", 5) == 0) {
+      |              ^~~~~~~
+..\shell\shell.c:13:1: note: 'strncmp' is defined in header '<string.h>'; this is probably fixable by adding '#include <string.h>'
+   12 | #include "../include/string.h"
+  +++ |+#include <string.h>
+   13 | 
+..\shell\shell.c:51:21: error: implicit declaration of function 'memory_alloc' [-Wimplicit-function-declaration]
+   51 |         void *ptr = memory_alloc(64);
+      |                     ^~~~~~~~~~~~
+..\shell\shell.c:51:21: error: initialization of 'void *' from 'int' makes pointer from integer without a cast [-Wint-conversion]
+..\shell\shell.c:57:13: error: implicit declaration of function 'memory_free' [-Wimplicit-function-declaration]
+   57 |             memory_free(ptr);
+      |             ^~~~~~~~~~~

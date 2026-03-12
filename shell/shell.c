@@ -5,44 +5,22 @@
  * Supported commands: help, echo, clear, alloc.
  * ========================================================================= */
 
-#include "shell.h"
 #include "../drivers/vga.h"
 #include "../drivers/keyboard.h"
+#include "../drivers/timer.h"
+#include "../include/stdio.h"
+#include "../include/string.h"
 #include "../kernel/memory.h"
 
 #define MAX_CMD_LEN 128
 
-/*
- * Compare two strings up to n characters.
- * Returns 0 if equal, non-zero otherwise.
- */
-static int strcmp_n(const char *s1, const char *s2, int n) {
-    for (int i = 0; i < n; i++) {
-        if (s1[i] != s2[i]) return s1[i] - s2[i];
-        if (s1[i] == '\0') return 0;
-    }
-    return 0;
-}
-
-/*
- * Compare two null-terminated strings for exact equality.
- */
-static int strcmp(const char *s1, const char *s2) {
-    int i = 0;
-    while (s1[i] != '\0' && s2[i] != '\0') {
-        if (s1[i] != s2[i]) return s1[i] - s2[i];
-        i++;
-    }
-    return s1[i] - s2[i];
-}
-
 void shell_init(void) {
     vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
-    vga_print("\n========================================\n");
-    vga_print("   Welcome to BlackHole OS Shell v0.1   \n");
-    vga_print("========================================\n\n");
+    printf("\n========================================\n");
+    printf("   Welcome to BlackHole OS Shell v0.1   \n");
+    printf("========================================\n\n");
     vga_set_color(VGA_WHITE, VGA_BLACK);
-    vga_print("Type 'help' for a list of commands.\n\n");
+    printf("Type 'help' for a list of commands.\n\n");
 }
 
 /*
@@ -55,42 +33,50 @@ static void execute_command(char *cmd) {
 
     if (strcmp(cmd, "help") == 0) {
         vga_set_color(VGA_LIGHT_BLUE, VGA_BLACK);
-        vga_print("Available commands:\n");
+        printf("Available commands:\n");
         vga_set_color(VGA_WHITE, VGA_BLACK);
-        vga_print("  help        - Show this help message\n");
-        vga_print("  echo <text> - Print text back to the screen\n");
-        vga_print("  clear       - Clear the screen\n");
-        vga_print("  alloc       - Test memory allocator\n");
+        printf("  help        - Show this help message\n");
+        printf("  echo <text> - Print text back to the screen\n");
+        printf("  clear       - Clear the screen\n");
+        printf("  alloc       - Test memory allocator\n");
+        printf("  uptime      - Show system uptime in centiseconds\n");
+        printf("  sleep       - Sleep for 1 second\n");
     } 
     else if (strcmp(cmd, "clear") == 0) {
         vga_clear();
     } 
-    else if (strcmp_n(cmd, "echo ", 5) == 0) {
+    else if (strncmp(cmd, "echo ", 5) == 0) {
         /* Print everything after 'echo ' */
-        vga_print(cmd + 5);
-        vga_print("\n");
+        printf("%s\n", cmd + 5);
     }
     else if (strcmp(cmd, "alloc") == 0) {
-        vga_print("Allocating 64 bytes... ");
+        printf("Allocating 64 bytes... ");
         void *ptr = memory_alloc(64);
         if (ptr) {
             vga_set_color(VGA_LIGHT_GREEN, VGA_BLACK);
-            vga_print("SUCCESS\n");
+            printf("SUCCESS\n");
             vga_set_color(VGA_WHITE, VGA_BLACK);
             /* Optional: test freeing it */
             memory_free(ptr);
-            vga_print("Memory block freed.\n");
+            printf("Memory block freed.\n");
         } else {
             vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
-            vga_print("FAILED\n");
+            printf("FAILED\n");
             vga_set_color(VGA_WHITE, VGA_BLACK);
         }
     }
+    else if (strcmp(cmd, "uptime") == 0) {
+        uint32_t ticks = timer_get_ticks();
+        printf("System uptime: %u ticks (each tick = 10ms)\n", ticks);
+    }
+    else if (strcmp(cmd, "sleep") == 0) {
+        printf("Sleeping for 1000ms... ");
+        sleep(1000);
+        printf("Done!\n");
+    }
     else {
         vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
-        vga_print("Unknown command: ");
-        vga_print(cmd);
-        vga_print("\n");
+        printf("Unknown command: %s\n", cmd);
         vga_set_color(VGA_WHITE, VGA_BLACK);
     }
 }
@@ -100,7 +86,7 @@ void shell_loop(void) {
     
     while (1) {
         vga_set_color(VGA_YELLOW, VGA_BLACK);
-        vga_print("BH-OS> ");
+        printf("BH-OS> ");
         vga_set_color(VGA_WHITE, VGA_BLACK);
 
         /* Read one line of input */

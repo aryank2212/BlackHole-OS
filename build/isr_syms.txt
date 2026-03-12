@@ -1,0 +1,16 @@
+
+isr.o:     file format pe-i386
+
+SYMBOL TABLE:
+[  0](sec -2)(fl 0x00)(ty    0)(scl 103) (nx 1) 0x00000000 fake
+File 
+[  2](sec  1)(fl 0x00)(ty    0)(scl   3) (nx 1) 0x00000000 .text
+AUX scnlen 0x8 nreloc 1 nlnno 0
+[  4](sec  2)(fl 0x00)(ty    0)(scl   3) (nx 1) 0x00000000 .data
+AUX scnlen 0x0 nreloc 0 nlnno 0
+[  6](sec  3)(fl 0x00)(ty    0)(scl   3) (nx 1) 0x00000000 .bss
+AUX scnlen 0x0 nreloc 0 nlnno 0
+[  8](sec  1)(fl 0x00)(ty    0)(scl   2) (nx 0) 0x00000000 _isr_irq1
+[  9](sec  0)(fl 0x00)(ty    0)(scl   2) (nx 0) 0x00000000 _irq1_handler
+
+

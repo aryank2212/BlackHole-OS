@@ -1,5 +1,6 @@
 #include "../drivers/vga.h"
 #include "../drivers/keyboard.h"
+#include "../drivers/timer.h"
 #include "idt.h"
 #include "memory.h"
 #include "../shell/shell.h"
@@ -17,13 +18,17 @@ void kernel_main(void) {
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     vga_print("Kernel loaded successfully.\n");
 
-    /* Initialize interrupts and keyboard */
-    vga_print("Initializing IDT...\n");
+    vga_print("Initializing IDT & PIC...\n");
     idt_init();
+    
+    vga_print("Initializing Timer...\n");
+    timer_init(100); /* 100 Hz = 10ms per tick */
+    
     keyboard_init();
 
     vga_set_color(VGA_WHITE, VGA_BLACK);
     vga_print("> IDT initialized.\n");
+    vga_print("> Timer running at 100Hz.\n");
     vga_print("> Keyboard driver ready.\n");
 
     /* Initialize memory allocator */

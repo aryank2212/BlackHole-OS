@@ -1,0 +1,2 @@
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: warning: cannot find entry symbol _start; defaulting to 00001000
+C:\ProgramData\mingw64\mingw64\bin\ld.exe: idt.o:idt.c:(.text+0x1a9): undefined reference to `isr_irq0'
