@@ -7,11 +7,20 @@
 
 .code32
 
+.extern _isr14_handler
 .extern _irq0_handler
 .extern _irq1_handler
 
+.global _isr_14
 .global _isr_irq0
 .global _isr_irq1
+
+_isr_14:
+    pusha
+    call _isr14_handler
+    popa
+    add $4, %esp    /* Clean up the hardware-pushed error code */
+    iret
 
 _isr_irq0:
     pusha

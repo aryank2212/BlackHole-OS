@@ -55,6 +55,8 @@ void idt_init(void) {
     /* Remap PIC */
     pic_remap();
 
+    idt_set_gate(14, (unsigned int)isr_14, 0x08, 0x8E);
+
     /* Install IRQ0 (timer) handler — IDT entry 32 */
     idt_set_gate(32, (unsigned int)isr_irq0, 0x08, 0x8E);
 

@@ -41,6 +41,7 @@ static void execute_command(char *cmd) {
         printf("  alloc       - Test memory allocator\n");
         printf("  uptime      - Show system uptime in centiseconds\n");
         printf("  sleep       - Sleep for 1 second\n");
+        printf("  pagefault   - Trigger a deliberate Page Fault (Security Test)\n");
     } 
     else if (strcmp(cmd, "clear") == 0) {
         vga_clear();
@@ -73,6 +74,11 @@ static void execute_command(char *cmd) {
         printf("Sleeping for 1000ms... ");
         sleep(1000);
         printf("Done!\n");
+    }
+    else if (strcmp(cmd, "pagefault") == 0) {
+        printf("Triggering Page Fault at 0xFFFFF000...\n");
+        uint32_t *bad_ptr = (uint32_t *)0xFFFFF000;
+        *bad_ptr = 0xDEADBEEF; /* This should crash the OS safely into our handler */
     }
     else {
         vga_set_color(VGA_LIGHT_RED, VGA_BLACK);

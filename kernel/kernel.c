@@ -2,6 +2,7 @@
 #include "../drivers/keyboard.h"
 #include "../drivers/timer.h"
 #include "idt.h"
+#include "paging.h"
 #include "memory.h"
 #include "../shell/shell.h"
 
@@ -17,6 +18,9 @@ void kernel_main(void) {
 
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     vga_print("Kernel loaded successfully.\n");
+
+    vga_print("Initializing Virtual Memory (Paging)...\n");
+    paging_init();
 
     vga_print("Initializing IDT & PIC...\n");
     idt_init();

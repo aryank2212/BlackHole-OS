@@ -1,7 +1,7 @@
 # BLACKHOLE OS PROJECT STATE
 
 **Project Name:** BlackHole  
-**Version:** 0.1.1  
+**Version:** 0.1.2  
 **Architecture:** x86 (initial version)
 
 **Goal:**  
@@ -13,7 +13,7 @@ loads a kernel, manages memory, and provides an interactive environment.
 ## SYSTEM ARCHITECTURE
 
 ```text
-Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT Timer) → Standard Library (libc) → Memory Allocator → Interactive Shell
+Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT) → Virtual Memory (Paging) → Standard Library (libc) → Memory Allocator → Interactive Shell
 ```
 
 ---
@@ -31,6 +31,7 @@ Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT Timer) → 
   isr.h / isr.c         ← ISR C-side handlers
   isr_stub.S            ← IRQ ASM stubs (GAS format)
   memory.h / memory.c   ← Memory allocator (Free-list)
+  paging.h / paging.c   ← Virtual Memory / MMU hardware logic
 
 /drivers
   vga.h / vga.c         ← VGA text mode driver
@@ -65,3 +66,8 @@ Bootloader → Protected Mode Kernel → Drivers (VGA, Keyboard, PIT Timer) → 
    - Wired the PIT directly into the IDT configuration and the C ISR dispatch tables via Gas assembly `isr_stub.S`.
    - Developed `sleep(ms)` precision timing functionality.
    - Added robust `uptime` and `sleep` testing mechanisms into the user-facing Shell.
+
+3. **Virtual Memory (Paging)**:
+   - Configured Hardware Memory Management Translation across the `CR3` and `CR0` core hardware registers.
+   - Identity mapped the lower 4 Megabytes of system memory natively.
+   - Registered deep diagnostic logging over Hardware Exception 14 handling safe `kernel_panic` states instead of emulator reboots via fetching data directly from memory state pipeline over `CR2`.

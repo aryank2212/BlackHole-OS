@@ -37,6 +37,7 @@ $IsrObj       = Join-Path $BuildDir "isr.o"
 $KernelObj    = Join-Path $BuildDir "kernel.o"
 $IdtObj       = Join-Path $BuildDir "idt.o"
 $IsrCObj      = Join-Path $BuildDir "isr_c.o"
+$PagingObj    = Join-Path $BuildDir "paging.o"
 $VgaObj       = Join-Path $BuildDir "vga.o"
 $KeyboardObj  = Join-Path $BuildDir "keyboard.o"
 $TimerObj     = Join-Path $BuildDir "timer.o"
@@ -102,7 +103,7 @@ function Install-Deps {
 
 function Clean-Build {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
-    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $VgaObj, $KeyboardObj, $TimerObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
+    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $PagingObj, $VgaObj, $KeyboardObj, $TimerObj, $MemoryObj, $ShellObj, $StringObj, $StdioObj, $KernelPe, $KernelBin, $OsImage)
     foreach ($f in $artifacts) {
         if (Test-Path $f) { Remove-Item $f -Force }
     }
@@ -147,11 +148,18 @@ function Build-OS {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: IDT compilation" -ForegroundColor Red; exit 1 }
 
     # 6. Compile ISR C handler
-    Write-Host "[6/9] Compiling ISR handler..." -ForegroundColor Gray
+    Write-Host "[6/10] Compiling ISR handler..." -ForegroundColor Gray
     & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
            -fno-stack-protector -nostartfiles -nodefaultlibs `
            -Wall -Wextra -c (Join-Path $KernelDir "isr.c") -o $IsrCObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: ISR C compilation" -ForegroundColor Red; exit 1 }
+
+    # 6b. Compile Paging module
+    Write-Host "[6b/10] Compiling paging module..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "paging.c") -o $PagingObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: Paging compilation" -ForegroundColor Red; exit 1 }
 
     # 7. Compile VGA driver
     Write-Host "[7/9] Compiling VGA driver..." -ForegroundColor Gray
@@ -202,8 +210,8 @@ function Build-OS {
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: stdio compilation" -ForegroundColor Red; exit 1 }
 
     # 8. Link kernel as PE
-    Write-Host "[8/14] Linking kernel..." -ForegroundColor Gray
-    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $VgaObj $KeyboardObj $TimerObj $MemoryObj $ShellObj $StringObj $StdioObj
+    Write-Host "[8/15] Linking kernel..." -ForegroundColor Gray
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $PagingObj $VgaObj $KeyboardObj $TimerObj $MemoryObj $ShellObj $StringObj $StdioObj
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking" -ForegroundColor Red; exit 1 }
 
     # 9. Convert PE to flat binary
