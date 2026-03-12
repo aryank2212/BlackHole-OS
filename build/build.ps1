@@ -1,0 +1,226 @@
+# ============================================================================
+# BlackHole OS — PowerShell Build Script (Windows)
+# ============================================================================
+# Usage:
+#   .\build.ps1              — build os-image.bin
+#   .\build.ps1 run          — build and run in QEMU
+#   .\build.ps1 clean        — remove build artifacts
+#   .\build.ps1 install-deps — install NASM, MinGW (GCC), QEMU via Chocolatey
+# ============================================================================
+
+param(
+    [Parameter(Position=0)]
+    [ValidateSet("build", "run", "clean", "install-deps")]
+    [string]$Action = "build"
+)
+
+$ErrorActionPreference = "Stop"
+
+# --- Paths ---
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+if ($PSScriptRoot -eq $null -or $PSScriptRoot -eq "") {
+    $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+}
+$BootDir     = Join-Path $ProjectRoot "boot"
+$KernelDir   = Join-Path $ProjectRoot "kernel"
+$BuildDir    = Join-Path $ProjectRoot "build"
+
+# --- Directories ---
+$DriverDir   = Join-Path $ProjectRoot "drivers"
+$ShellDir    = Join-Path $ProjectRoot "shell"
+
+# --- Output files ---
+$BootBin      = Join-Path $BuildDir "boot.bin"
+$KEntryObj    = Join-Path $BuildDir "kernel_entry.o"
+$IsrObj       = Join-Path $BuildDir "isr.o"
+$KernelObj    = Join-Path $BuildDir "kernel.o"
+$IdtObj       = Join-Path $BuildDir "idt.o"
+$IsrCObj      = Join-Path $BuildDir "isr_c.o"
+$VgaObj       = Join-Path $BuildDir "vga.o"
+$KeyboardObj  = Join-Path $BuildDir "keyboard.o"
+$MemoryObj    = Join-Path $BuildDir "memory.o"
+$ShellObj     = Join-Path $BuildDir "shell.o"
+$KernelPe     = Join-Path $BuildDir "kernel.pe"
+$KernelBin    = Join-Path $BuildDir "kernel.bin"
+$OsImage      = Join-Path $BuildDir "os-image.bin"
+$LinkerScript = Join-Path $BuildDir "linker.ld"
+
+# --- Auto-detect tool paths (add known install locations to PATH) ---
+$extraPaths = @(
+    "C:\Program Files\NASM",
+    "C:\ProgramData\mingw64\mingw64\bin",
+    "C:\tools\mingw64\bin",
+    "C:\mingw64\bin",
+    "C:\MinGW\bin",
+    "C:\Program Files\qemu",
+    "C:\Program Files (x86)\qemu"
+)
+foreach ($p in $extraPaths) {
+    if ((Test-Path $p) -and ($env:PATH -notlike "*$p*")) {
+        $env:PATH = "$p;$env:PATH"
+    }
+}
+
+# --- Tool detection ---
+function Find-Tool($name) {
+    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+function Assert-Tool($name) {
+    $path = Find-Tool $name
+    if (-not $path) {
+        Write-Host "ERROR: '$name' not found on PATH. Run '.\build.ps1 install-deps' first." -ForegroundColor Red
+        exit 1
+    }
+    return $path
+}
+
+# ============================================================================
+# Actions
+# ============================================================================
+
+function Install-Deps {
+    Write-Host "Installing OS development tools via Chocolatey..." -ForegroundColor Cyan
+    Write-Host "This requires an ELEVATED (Admin) PowerShell." -ForegroundColor Yellow
+
+    $packages = @("nasm", "mingw", "qemu")
+    foreach ($pkg in $packages) {
+        Write-Host "  -> Installing $pkg..." -ForegroundColor Gray
+        choco install $pkg -y --no-progress
+    }
+
+    Write-Host ""
+    Write-Host "Done! Please restart your terminal so PATH changes take effect." -ForegroundColor Green
+    Write-Host "Then run: .\build.ps1 run" -ForegroundColor Green
+}
+
+function Clean-Build {
+    Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
+    $artifacts = @($BootBin, $KEntryObj, $IsrObj, $KernelObj, $IdtObj, $IsrCObj, $VgaObj, $KeyboardObj, $MemoryObj, $ShellObj, $KernelPe, $KernelBin, $OsImage)
+    foreach ($f in $artifacts) {
+        if (Test-Path $f) { Remove-Item $f -Force }
+    }
+    Write-Host "Clean." -ForegroundColor Green
+}
+
+function Build-OS {
+    $nasm    = Assert-Tool "nasm"
+    $gcc     = Assert-Tool "gcc"
+    $ld      = Assert-Tool "ld"
+    $objcopy = Assert-Tool "objcopy"
+
+    Write-Host "=== BlackHole OS Build ===" -ForegroundColor Cyan
+
+    # 1. Assemble bootloader
+    Write-Host "[1/5] Assembling bootloader..." -ForegroundColor Gray
+    & $nasm -f bin (Join-Path $BootDir "boot.asm") -o $BootBin
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: bootloader assembly" -ForegroundColor Red; exit 1 }
+
+    # 2. Assemble kernel entry (elf32 format for compatibility)
+    Write-Host "[2/5] Assembling kernel entry..." -ForegroundColor Gray
+    & $nasm -f win32 (Join-Path $KernelDir "kernel_entry.asm") -o $KEntryObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel entry assembly" -ForegroundColor Red; exit 1 }
+
+    # 3. Assemble ISR stubs (using GCC/GAS for consistent symbol mangling)
+    Write-Host "[3/9] Assembling ISR stubs..." -ForegroundColor Gray
+    & $gcc -m32 -c (Join-Path $KernelDir "isr_stub.S") -o $IsrObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: ISR assembly" -ForegroundColor Red; exit 1 }
+
+    # 4. Compile kernel C code
+    Write-Host "[4/9] Compiling kernel..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "kernel.c") -o $KernelObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel compilation" -ForegroundColor Red; exit 1 }
+
+    # 5. Compile IDT
+    Write-Host "[5/9] Compiling IDT..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "idt.c") -o $IdtObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: IDT compilation" -ForegroundColor Red; exit 1 }
+
+    # 6. Compile ISR C handler
+    Write-Host "[6/9] Compiling ISR handler..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "isr.c") -o $IsrCObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: ISR C compilation" -ForegroundColor Red; exit 1 }
+
+    # 7. Compile VGA driver
+    Write-Host "[7/9] Compiling VGA driver..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $DriverDir "vga.c") -o $VgaObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: VGA driver compilation" -ForegroundColor Red; exit 1 }
+
+    # 7b. Compile Keyboard driver
+    Write-Host "[7b/9] Compiling keyboard driver..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $DriverDir "keyboard.c") -o $KeyboardObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: keyboard driver compilation" -ForegroundColor Red; exit 1 }
+
+    # 7c. Compile Memory Allocator
+    Write-Host "[7c/10] Compiling memory allocator..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $KernelDir "memory.c") -o $MemoryObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: memory allocator compilation" -ForegroundColor Red; exit 1 }
+
+    # 7d. Compile Shell
+    Write-Host "[7d/11] Compiling shell..." -ForegroundColor Gray
+    & $gcc -m32 -ffreestanding -fno-pie -nostdlib -fno-builtin `
+           -fno-stack-protector -nostartfiles -nodefaultlibs `
+           -Wall -Wextra -c (Join-Path $ShellDir "shell.c") -o $ShellObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: shell compilation" -ForegroundColor Red; exit 1 }
+
+    # 8. Link kernel as PE
+    Write-Host "[8/11] Linking kernel..." -ForegroundColor Gray
+    & $ld -m i386pe -T $LinkerScript -o $KernelPe $KEntryObj $IsrObj $KernelObj $IdtObj $IsrCObj $VgaObj $KeyboardObj $MemoryObj $ShellObj
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: kernel linking" -ForegroundColor Red; exit 1 }
+
+    # 9. Convert PE to flat binary
+    Write-Host "[9/9] Converting to flat binary..." -ForegroundColor Gray
+    & $objcopy -O binary $KernelPe $KernelBin
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: objcopy" -ForegroundColor Red; exit 1 }
+
+    # 6. Create OS image (concatenate boot + kernel)
+    Write-Host "Creating OS image..." -ForegroundColor Gray
+    $bootBytes   = [System.IO.File]::ReadAllBytes($BootBin)
+    $kernelBytes = [System.IO.File]::ReadAllBytes($KernelBin)
+    $imageBytes  = $bootBytes + $kernelBytes
+    [System.IO.File]::WriteAllBytes($OsImage, $imageBytes)
+
+    $sizeKB = [math]::Round($imageBytes.Length / 1024, 1)
+    Write-Host "=== Build successful: os-image.bin ($sizeKB KB) ===" -ForegroundColor Green
+}
+
+function Run-OS {
+    Build-OS
+
+    $qemu = Find-Tool "qemu-system-i386"
+    if (-not $qemu) {
+        $qemu = Find-Tool "qemu-system-x86_64"
+    }
+    if (-not $qemu) {
+        Write-Host "ERROR: QEMU not found. Install it or add to PATH." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Launching QEMU..." -ForegroundColor Cyan
+    & $qemu -fda $OsImage
+}
+
+# ============================================================================
+# Dispatch
+# ============================================================================
+
+switch ($Action) {
+    "build"        { Build-OS }
+    "run"          { Run-OS }
+    "clean"        { Clean-Build }
+    "install-deps" { Install-Deps }
+}

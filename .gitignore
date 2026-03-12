@@ -1,0 +1,13 @@
+# Build artifacts
+/build/*.bin
+/build/*.o
+/build/*.pe
+/build/os-image.bin
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
